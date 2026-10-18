@@ -1,0 +1,47 @@
+    { id: "X3", name: "İnsan ve operasyon maliyeti", d: "Kurmak ve işletmek için tam zamanlı eşdeğer (FTE) personel.", s: { odi: [3, "Standart ETL ekibi."], ipc: [3, "Standart ETL ekibi artı yöneticiler."], dbt: [4, "Yerel LLM ile hızlanan küçük SQL ekibi."], cdp: [2, "Özel platform ekibi."], spark: [2, "Platform artı veri mühendisliği ekibi."] } },
+  ] },
+];
+
+const CONSTRAINTS: string[] = [
+  "Tek araç: Takasbank, çoklu araçlı bir mimari değil, tek bir ETL/ELT aracı seçecektir.",
+  "Hedef veritabanı: mevcut Oracle Exadata, EDW hedefidir; staging, ODS, çekirdek katman ve veri martlarını barındırır.",
+  "Lisanslama: Oracle ULA yalnızca Oracle kaynakları için GoldenGate'i kapsar. Oracle dışı kaynaklar için GoldenGate kapsam dışındadır ancak ULA paketine eklenebilir. ODI kapsam dışındadır; dolayısıyla yeni bir lisans olur ve yıllık 250.000 USD olduğu varsayılmıştır.",
+  "Mevcut raporlar: tüm mevcut raporlar Oracle üzerinde PL/SQL ile yazılmıştır. Seçilen araç bunları ilk günden çalıştırabilmeli; sorgularının dönüştürülme eforu da bir karar kriteridir.",
+  "Gelecek hedef: EDW'nin Exadata'dan PostgreSQL'e taşınması bir olasılıktır; bu nedenle veri akışları bankayı Oracle'a bağlamamalıdır.",
+  "Cloudera: yalnızca şirket içi (on-prem) dağıtım (Cloudera Private Cloud Base, isteğe bağlı olarak on-prem Private Cloud Data Services) değerlendirilmektedir.",
+  "Ekip: mühendislik ekibi SQL'i çok iyi bilmektedir; SQL öncelikli geliştirme tercih edilir. Öğrenme eğrisi ve uzun vadeli bakım eforu karar kriterleridir.",
+  "Yapay zekâ benimsenmesi: Takasbank yerel (kendi barındırdığı) bir LLM çalıştırmaktadır ve bunu veri akışlarını oluşturmak, belgelemek, test etmek ve gözden geçirmek için kullanmak istemektedir.",
+  "Zamanlama: kurum içi geliştirilen zamanlayıcı, tüm veri akışları ve rapor çalıştırmaları için birincil zamanlayıcıdır; seçilen araç kendi zamanlayıcısı yerine bu zamanlayıcı üzerinden başlatılır ve izlenir.",
+  "ODI lisansı: maliyet karşılaştırması için yıllık 250.000 USD (5 yılda 1,25 milyon USD) olarak varsayılmıştır.",
+];
+
+type Fit = "Yes" | "Partial" | "No";
+const LATENCY: { cls: string; latency: string; uses: string; pattern: string; fit: Record<ToolId, Fit> }[] = [
+  { cls: "L0 Gerçek zamanlı", latency: "< 5 saniye", uses: "Teminat ve marj ihlali uyarıları; VİOP türev ürünlerinde gün içi risk pozisyonu; takas ve EFT durumu izleme.", pattern: "Log tabanlı CDC / olaylar -> Kafka -> Flink veya Spark Structured Streaming -> uyarı servisi. Akış olmadan: GoldenGate -> Exadata ODS -> sık uyarı sorguları.", fit: { odi: "Partial", ipc: "No", dbt: "Partial", cdp: "Yes", spark: "Yes" } },
+  { cls: "L1 Near real-time (yakın gerçek zamanlı)", latency: "5 sn - 5 dk", uses: "Gün içi pozisyon, nakit ve takas panoları; Takasbank Para Piyasası izleme.", pattern: "GoldenGate CDC -> Exadata ODS -> ODS görünümleri üzerinde BI.", fit: { odi: "Yes", ipc: "Partial", dbt: "Yes", cdp: "Yes", spark: "Yes" } },
+  { cls: "L2 Gün içi mikro-batch", latency: "5 - 60 dk", uses: "Takas, saklama, teminat ve hazine birimleri için operasyonel raporlar.", pattern: "ODS'den Exadata üzerindeki raporlama marlarına zamanlanmış artımlı ELT.", fit: { odi: "Yes", ipc: "Yes", dbt: "Yes", cdp: "Yes", spark: "Yes" } },
+  { cls: "L3 Günlük batch (T+0 EOD / T+1)", latency: "Saatler", uses: "SPK, BDDK ve TCMB'ye düzenleyici raporlar; EDW çekirdek yüklemeleri; finansal ve risk raporlaması.", pattern: "Mutabakatlı Exadata EDW'ye (staging -> çekirdek -> martlar) batch ELT.", fit: { odi: "Yes", ipc: "Yes", dbt: "Yes", cdp: "Yes", spark: "Yes" } },
+  { cls: "L4 Periyodik", latency: "Aylık / üç aylık", uses: "İstatistikler, IFRS, PFMI nicel açıklamaları, yönetim bilgileri.", pattern: "EDW martları üzerinde batch toplulaştırmalar.", fit: { odi: "Yes", ipc: "Yes", dbt: "Yes", cdp: "Yes", spark: "Yes" } },
+];
+
+const REALTIME_NOTES: string[] = [
+  "GoldenGate (ULA) her seçenek için Exadata ODS'yi saniyeler içinde güncel tutar; böylece hangi ETL aracı seçilirse seçilsin L1 panoları replike edilen tabloları doğrudan okuyabilir.",
+  "Yalnızca Cloudera (ve kendi kendine destekli Spark) L0 uyarıları için durum bilgili saniye altı akış işleme sunar. Diğer tüm araçlarla L0 uyarıları, GoldenGate ile beslenen ODS üzerinde SQL kontrolleridir ve genellikle birkaç saniyede bir ile dakikada bir arasında çalışır.",
+];
+
+const CDC_OPTIONS: string[][] = [
+  ["Oracle kaynakları için Oracle GoldenGate (ULA kapsamında)", "Redo-log yakalama, trail dosyaları, Exadata'ya replicat", "Saniye altından saniyelere", "Her seçenek (Exadata staging/ODS'ye iner); ODI yerel olarak", "Ek lisans maliyeti olmayan varsayılan CDC katmanı. GoldenGate DAA'nın (Kafka teslimatı) ULA kapsamını teyit edin."],
+  ["Oracle dışı kaynaklar için Oracle GoldenGate (ULA eklentisi)", "MSSQL, DB2, PostgreSQL ve diğerleri için yerel log yakalama", "Saniye altından saniyelere", "Her seçenek; ODI yerel olarak", "Bugün ULA kapsamında değil ancak pakete eklenebilir; PostgreSQL EDW hedefi için de gereklidir. ULA sertifikasyonundan önce müzakere edin."],
+  ["Debezium (Oracle LogMiner bağlayıcısı)", "Kafka Connect üzerinden log madenciliği", "Saniyeler", "CDP, Spark, herhangi bir Kafka tüketicisi", "Açık kaynak; Cloudera aboneliği kapsamında desteklenir; GoldenGate'i tekrarlar, ancak GoldenGate eklentisi olmadan MSSQL, DB2 ve PostgreSQL'i de kapsar."],
+  ["Informatica PowerExchange CDC", "Log tabanlı yakalama", "Saniyeler ile dakikalar arası", "Informatica", "Ayrıca lisanslanır; Oracle kaynakları için GoldenGate'i tekrarlar, ancak DB2 ve mainframe için GoldenGate Oracle dışı eklentisine bir alternatiftir."],
+  ["ODI journalizing", "Trigger'lar veya GoldenGate tabanlı journal'lar", "Dakikalar", "ODI", "GoldenGate modunu kullanın; trigger modu çekirdek OLTP'ye yük bindirir."],
+  ["Zaman damgası / artımlı veri çekme", "Değişiklik sütunları üzerinde sorgu", "Dakikalardan saatlere", "Tüm araçlar", "Silmeleri kaçırır; yalnızca L2-L4 için kabul edilebilir."],
+];
+
+type Rating = "Strong" | "Adequate" | "Gap";
+const COMPLIANCE: { control: string; reg: string; req: string; r: Record<ToolId, [Rating, string]> }[] = [
+  { control: "Veri yerelleştirme", reg: "BDDK Bilgi Sistemleri ve Elektronik Bankacılık Hizmetleri Yönetmeliği; SPK VII-128.9; KVKK md. 9", req: "Birincil ve ikincil sistemler ve veriler Türkiye'de tutulur; kontrollü yurt dışına aktarım.", r: { odi: ["Strong", "Tamamen şirket içi."], ipc: ["Adequate", "Bugün şirket içi; üretici bulut IDMC'ye yönlendiriyor."], dbt: ["Strong", "dbt Core yerel; dbt Cloud'a izin verilmez."], cdp: ["Strong", "Tamamen şirket içi."], spark: ["Strong", "Tamamen şirket içi."] } },
+  { control: "Erişim kontrolü ve en az ayrıcalık", reg: "SPK VII-128.9 (erişim yönetimi); BDDK BS Yönetmeliği", req: "Merkezi kimlik, rol tabanlı erişim, ayrıcalıklı erişim yönetimi.", r: { odi: ["Strong", "LDAP/OPSS, güvenlik profilleri."], ipc: ["Strong", "LDAP, ayrıntılı yetkiler."], dbt: ["Gap", "Exadata rollerine ve Git'e dayanır; PAM ve kasa (vault) ekleyin."], cdp: ["Strong", "Kerberos, Ranger, Knox."], spark: ["Gap", "Kerberos/Ranger/RBAC entegre edilmelidir."] } },
+  { control: "Denetim logları ve izlenebilirlik", reg: "SPK VII-128.9; BDDK BS Yönetmeliği", req: "Kim neyi ne zaman değiştirdi/çalıştırdı; SIEM'e kurcalamaya dayanıklı loglar.", r: { odi: ["Strong", "Repository ve çalıştırma logları."], ipc: ["Strong", "Repository ve oturum logları."], dbt: ["Adequate", "Git geçmişi artı çalıştırma artefaktları ve Exadata unified audit; SIEM'e gönderin."], cdp: ["Strong", "Ranger merkezi denetimi."], spark: ["Gap", "Log hattı mühendisliği gerekir."] } },
+  { control: "Kişisel veri koruma ve maskeleme", reg: "KVKK md. 12 (veri güvenliği); KVKK Kurulu teknik tedbirler rehberi", req: "Üretim dışı ortamlarda maskeleme/anonimleştirme, ayrıcalıklı kullanıcılar için dinamik maskeleme.", r: { odi: ["Adequate", "Oracle Data Redaction/VPD seçenekleri ile."], ipc: ["Adequate", "Dönüşümler veya ayrı maskeleme ürünü."], dbt: ["Adequate", "Maskeleme makroları artı Exadata politikaları."], cdp: ["Strong", "Ranger etiket tabanlı maskeleme."], spark: ["Gap", "Özel."] } },
+  { control: "Şifreleme", reg: "BDDK BS Yönetmeliği; KVKK teknik tedbirler", req: "İletimde TLS, beklemede şifreleme, yönetilen anahtarlar (HSM).", r: { odi: ["Strong", "TLS, TDE."], ipc: ["Strong", "TLS, güvenli repository."], dbt: ["Strong", "Exadata şifrelemesini devralır."], cdp: ["Strong", "Otomatik TLS, şifreleme bölgeleri, KMS."], spark: ["Adequate", "Yapılandırılabilir; manuel."] } },
