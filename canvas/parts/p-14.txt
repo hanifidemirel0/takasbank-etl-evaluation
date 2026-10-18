@@ -1,0 +1,163 @@
+        </Grid>
+      </Stack>
+
+      <Divider />
+
+      <Stack gap={14}>
+        <Row gap={6} wrap>
+          {TABS.map((t) => <Pill key={t} active={tab === t} onClick={() => setTab(t)}>{t}</Pill>)}
+        </Row>
+
+        {tab === "Araç profilleri" ? (
+          <Stack gap={14}>
+            <Row gap={6} wrap>
+              {TOOL_IDS.map((t) => <Pill key={t} size="sm" active={profileTool === t} onClick={() => setProfileTool(t)}>{TOOLS[t].name}</Pill>)}
+            </Row>
+            <ToolProfile tool={profileTool} />
+          </Stack>
+        ) : null}
+
+        {tab === "Gerçek zamanlı ve CDC" ? (
+          <Stack gap={16}>
+            <Stack gap={6}>
+              <H3>Raporlama gecikme sınıfları ve araç uyumu</H3>
+              <Table
+                headers={["Sınıf", "Gecikme", "Takasbank kullanım senaryoları", "Referans desen", ...TOOL_IDS.map((t) => TOOLS[t].short)]}
+                rows={LATENCY.map((l) => [
+                  <span key="c" style={{ fontWeight: 600 }}>{l.cls}</span>, l.latency,
+                  <span key="u" style={{ fontSize: 12 }}>{l.uses}</span>,
+                  <span key="p" style={{ fontSize: 12, color: theme.text.secondary }}>{l.pattern}</span>,
+                  ...TOOL_IDS.map((t) => <StatusText key={t} level={l.fit[t]} />),
+                ])}
+              />
+              <Text size="small" tone="tertiary">Evet = yerel uyum; Kısmi = tamamlayıcı ürün veya geçici çözüm gerekir; Hayır = uygun değil.</Text>
+              <Bullets items={REALTIME_NOTES} />
+            </Stack>
+            <Stack gap={6}>
+              <H3>Değişiklik verisi yakalama (CDC) seçenekleri</H3>
+              <Table headers={["CDC seçeneği", "Mekanizma", "Tipik gecikme", "Birlikte çalıştığı araçlar", "Notlar"]} rows={CDC_OPTIONS} striped />
+            </Stack>
+          </Stack>
+        ) : null}
+
+        {tab === "Güvenlik ve mevzuat" ? (
+          <Stack gap={10}>
+            <H3>Kontrol eşleştirmesi: SPK VII-128.9, BDDK, KVKK, PFMI</H3>
+            <Table
+              headers={["Kontrol", "Gereksinim", ...TOOL_IDS.map((t) => TOOLS[t].short)]}
+              rows={COMPLIANCE.map((c) => [
+                <span key="c" style={{ display: "inline-flex", flexDirection: "column", gap: 2, minWidth: 150 }}>
+                  <span style={{ fontWeight: 600 }}>{c.control}</span>
+                  <span style={{ color: theme.text.tertiary, fontSize: 11 }}>{c.reg}</span>
+                </span>,
+                <span key="r" style={{ fontSize: 12, color: theme.text.secondary }}>{c.req}</span>,
+                ...TOOL_IDS.map((t) => <StatusText key={t} level={c.r[t][0]} note={c.r[t][1]} />),
+              ])}
+            />
+            <Row gap={28} wrap>
+              {TOOL_IDS.map((t) => {
+                const gaps = COMPLIANCE.filter((c) => c.r[t][0] === "Gap").length;
+                const strong = COMPLIANCE.filter((c) => c.r[t][0] === "Strong").length;
+                return <Stat key={t} value={`${strong} / ${gaps}`} label={`${TOOLS[t].short}: Güçlü / Açık (toplam ${COMPLIANCE.length})`} tone={gaps >= 3 ? "danger" : gaps > 0 ? "warning" : undefined} />;
+              })}
+            </Row>
+            <Text size="small" tone="tertiary">Dereceler yalnızca entegrasyon aracını kapsar. Exadata kontrolleri (TDE, Data Redaction, Database Vault, birleşik denetim) ve kurumsal kontroller (PAM, SIEM, HSM) her seçeneği tamamlar. Bilgi Güvenliği ve İç Denetim, RFP öncesinde bu eşleştirmeyi teyit etmelidir.</Text>
+          </Stack>
+        ) : null}
+
+        {tab === "5 yıllık TCO" ? (
+          <Stack gap={16}>
+            <Grid columns="minmax(0, 1fr) minmax(0, 1fr)" gap={24} align="start">
+              <Stack gap={8}>
+                <Text weight="semibold">PL/SQL rapor dönüşüm eforu, orta nokta (adam-gün)</Text>
+                <BarChart
+                  height={280}
+                  categories={TCO.map((r) => TOOLS[r.tool].short)}
+                  series={[{
+                    name: "Adam-gün",
+                    data: TCO.map((r) => {
+                      const [lo, hi] = migrationDays(r.personDays);
+                      return (lo + hi) / 2;
+                    }),
+                  }]}
+                />
+                <Text size="small" tone="tertiary">X ekseni: seçenek. Y ekseni: 200 PL/SQL rapor sorgusunu dönüştürmek için gereken adam-gün (düşük ve yüksek tahminin orta noktası). Kaynak: rapor başına adam-gün x 200 rapor. Analiz, dönüşüm, gözden geçirme, eşdeğerlik testi ve geçiş dahildir.</Text>
+              </Stack>
+              <Stack gap={8}>
+                <Text weight="semibold">Maliyet kalemine göre 5 yıllık platform TCO, orta nokta (bin USD)</Text>
+                <BarChart
+                  stacked
+                  height={280}
+                  valuePrefix="$"
+                  valueSuffix="k"
+                  categories={TCO.map((r) => TOOLS[r.tool].short)}
+                  series={[
+                    { name: "Lisans / abonelik", data: TCO.map((r) => (r.licence[0] + r.licence[1]) / 2) },
+                    { name: "Altyapı", data: TCO.map((r) => (r.infra[0] + r.infra[1]) / 2) },
+                    { name: "İnsan", data: TCO.map((r) => (r.people[0] + r.people[1]) / 2) },
+                    { name: "Uygulama hizmetleri", data: TCO.map((r) => (r.services[0] + r.services[1]) / 2) },
+                  ]}
+                />
+                <Text size="small" tone="tertiary">X ekseni: seçenek. Y ekseni: 5 yıl boyunca bin USD (düşük/yüksek aralığın orta noktası). Yalnızca lisans, altyapı, insan ve hizmetler. Dönüşüm eforu dahil değildir. Rakamlar gösterge niteliğindedir, üretici teklifi değildir.</Text>
+              </Stack>
+            </Grid>
+            <Table
+              headers={["Seçenek", "Gün / rapor", "Adam-gün", "Adam-yıl", "Platform TCO (bin USD)", "FTE", "Notlar"]}
+              columnAlign={["left", "right", "right", "right", "right", "right", "left"]}
+              rows={TCO.map((r) => {
+                const [lo, hi] = migrationDays(r.personDays);
+                const years = (n: number) => (n / MIGRATION.workingDays).toFixed(1);
+                const money = (n: number) => Math.round(n).toLocaleString("en-US");
+                const tcoLo = r.licence[0] + r.infra[0] + r.people[0] + r.services[0];
+                const tcoHi = r.licence[1] + r.infra[1] + r.people[1] + r.services[1];
+                const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+                return [
+                  TOOLS[r.tool].name,
+                  `${r.personDays[0]} - ${r.personDays[1]}`,
+                  `${fmt(lo)} - ${fmt(hi)}`,
+                  `${years(lo)} - ${years(hi)}`,
+                  `${money(tcoLo)} - ${money(tcoHi)}`,
+                  String(r.fte),
+                  <span key="n" style={{ fontSize: 12, color: theme.text.secondary }}>{r.notes}</span>,
+                ];
+              })}
+            />
+            <Text size="small" tone="tertiary">Adam-yıl hesabı, kadro planlaması için yıllık 220 çalışma gününe dayanır. Platform TCO, Geçiş eforu kategorisinde puanlanan dönüşüm eforunu içermez.</Text>
+            <Text size="small" weight="semibold">Varsayımlar</Text>
+            <Bullets items={TCO_ASSUMPTIONS} />
+          </Stack>
+        ) : null}
+
+        {tab === "Riskler" ? (
+          <Stack gap={8}>
+            <H3>Başlıca riskler ve azaltma önlemleri</H3>
+            <Table
+              headers={["İlgili seçenek", "Risk", "Olasılık", "Etki", "Azaltma önlemi"]}
+              rowTone={RISKS.map((r): TableRowTone => {
+                const sc = LEVEL_VALUE[r.l] * LEVEL_VALUE[r.i];
+                return sc >= 6 ? "danger" : sc >= 3 ? "warning" : "success";
+              })}
+              rows={RISKS.map((r) => [
+                r.tool === "all" ? "Tüm seçenekler" : TOOLS[r.tool].short,
+                <span key="r" style={{ fontSize: 13 }}>{r.risk}</span>, ENUM_TR[r.l], ENUM_TR[r.i],
+                <span key="m" style={{ fontSize: 12, color: theme.text.secondary }}>{r.m}</span>,
+              ])}
+            />
+            <Text size="small" tone="tertiary">Satır işareti: kırmızı = yüksek (1-3 ölçeğinde olasılık x etki 6 veya üzeri), sarı = orta (3-4), yeşil = düşük.</Text>
+          </Stack>
+        ) : null}
+
+        {tab === "Hedef mimari" ? (
+          <Stack gap={16}>
+            <Stack gap={6}>
+              <H3>Referans veri akışı</H3>
+              <ArchitectureDiagram />
+            </Stack>
+            <Grid columns="minmax(0, 1fr) minmax(0, 1fr)" gap={24} align="start">
+              <Stack gap={6}>
+                <H3>Mantıksal katmanlar</H3>
+                <Table headers={["Katman", "Birincil", "Alternatif", "Notlar"]} rows={LAYERS} />
+              </Stack>
+              <Stack gap={6}>
+                <H3>Aday seçenekler (tek bir araç seçilecektir)</H3>
+                <Table

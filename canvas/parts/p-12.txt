@@ -1,0 +1,166 @@
+            {TOOL_IDS.map((t) => <td key={t} style={{ padding: 0 }}><Heat v={totals[t]} bold /></td>)}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CriteriaDetail({ catId }: { catId: string }) {
+  const theme = useHostTheme();
+  const cat = CATS.find((c) => c.id === catId) ?? CATS[0];
+  return (
+    <Stack gap={8}>
+      <H3>{cat.name}: kriter puanları ve gerekçeler</H3>
+      <Text tone="secondary" size="small">{cat.d}</Text>
+      <Table
+        headers={["Kriter", ...TOOL_IDS.map((t) => TOOLS[t].short)]}
+        rows={cat.c.map((cr) => [
+          <span key="n" style={{ display: "inline-flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
+            <span style={{ fontWeight: 600, color: theme.text.primary }}>{cr.id} {cr.name}</span>
+            <span style={{ color: theme.text.tertiary, fontSize: 12 }}>{cr.d}</span>
+          </span>,
+          ...TOOL_IDS.map((t) => (
+            <span key={t} style={{ display: "inline-flex", flexDirection: "column", gap: 2, minWidth: 120 }}>
+              <span style={{ fontWeight: 600, color: theme.text.primary, fontVariantNumeric: "tabular-nums" }}>{cr.s[t][0]} / 5</span>
+              <span style={{ color: theme.text.secondary, fontSize: 12 }}>{cr.s[t][1]}</span>
+            </span>
+          )),
+        ])}
+      />
+    </Stack>
+  );
+}
+
+function WeightEditor({ weights, onChange, onReset }: { weights: Record<string, number>; onChange: (id: string, v: number) => void; onReset: () => void }) {
+  const theme = useHostTheme();
+  const sumW = CATS.reduce((a, c) => a + (weights[c.id] ?? 0), 0);
+  return (
+    <Card collapsible defaultOpen={false}>
+      <CardHeader trailing={<span style={{ color: theme.text.tertiary, fontSize: 12 }}>Ham ağırlık toplamı {sumW}, otomatik normalize edilir</span>}>
+        Kategori ağırlıklarını ayarla
+      </CardHeader>
+      <CardBody>
+        <Grid columns={2} gap={12}>
+          {CATS.map((c) => (
+            <div key={c.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 120px 28px", alignItems: "center", gap: 8 }}>
+              <span style={{ color: theme.text.secondary, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.name}>{c.name}</span>
+              <input
+                type="range" min={0} max={25} step={1} value={weights[c.id] ?? 0}
+                onChange={(e: { target: { value: string } }) => onChange(c.id, Number(e.target.value))}
+                style={{ width: "100%", accentColor: theme.accent.primary }}
+                aria-label={`${c.name} ağırlığı`}
+              />
+              <span style={{ color: theme.text.primary, fontSize: 12, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{weights[c.id] ?? 0}</span>
+            </div>
+          ))}
+        </Grid>
+        <div style={{ marginTop: 12 }}>
+          <Pill size="sm" onClick={onReset}>Takasbank Temel Senaryosuna sıfırla</Pill>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+type FlowTier = "src" | "exa" | "tooling" | "out";
+const FLOW_NODES: { id: string; lines: string[]; tier: FlowTier }[] = [
+  { id: "oltp", lines: ["Çekirdek OLTP", "(Oracle)"], tier: "src" },
+  { id: "nonora", lines: ["Oracle dışı kaynaklar", "(GoldenGate eklentisi)"], tier: "src" },
+  { id: "files", lines: ["Dosyalar, SWIFT", "ve MQ"], tier: "src" },
+  { id: "llm", lines: ["Yerel LLM", "(IDE + dbt MCP)"], tier: "tooling" },
+  { id: "gg", lines: ["GoldenGate", "(ULA: Oracle kaynakları)"], tier: "src" },
+  { id: "git", lines: ["Git PR, dbt testleri", "ve CI"], tier: "tooling" },
+  { id: "sched", lines: ["Kurum içi", "zamanlayıcı"], tier: "tooling" },
+  { id: "stg", lines: ["Exadata", "staging"], tier: "exa" },
+  { id: "ods", lines: ["Exadata ODS"], tier: "exa" },
+  { id: "plsql", lines: ["Mevcut PL/SQL", "reports"], tier: "exa" },
+  { id: "dbt", lines: ["dbt Core modelleri", "(veritabanı içi ELT)"], tier: "exa" },
+  { id: "edw", lines: ["Exadata çekirdek EDW", "+ veri martları"], tier: "exa" },
+  { id: "rt", lines: ["L1 panolar ve", "uyarı sorguları"], tier: "out" },
+  { id: "rep", lines: ["Operasyonel ve", "düzenleyici raporlar"], tier: "out" },
+];
+const FLOW_EDGES = [
+  { from: "oltp", to: "gg" }, { from: "nonora", to: "gg" }, { from: "gg", to: "stg" }, { from: "gg", to: "ods" }, { from: "files", to: "stg" },
+  { from: "llm", to: "git" }, { from: "git", to: "dbt" }, { from: "sched", to: "dbt" }, { from: "sched", to: "plsql" },
+  { from: "stg", to: "dbt" }, { from: "ods", to: "dbt" }, { from: "ods", to: "rt" },
+  { from: "plsql", to: "dbt" }, { from: "plsql", to: "rep" },
+  { from: "dbt", to: "edw" }, { from: "edw", to: "rep" },
+];
+const NODE_W = 140;
+const NODE_H = 44;
+
+function ArchitectureDiagram() {
+  const theme = useHostTheme();
+  const layout = useMemo(() => computeDAGLayout({
+    nodes: FLOW_NODES.map((n) => ({ id: n.id })), edges: FLOW_EDGES, direction: "horizontal",
+    nodeWidth: NODE_W, nodeHeight: NODE_H, rankGap: 40, nodeGap: 14, padding: 12,
+  }), []);
+  const byId = new Map(FLOW_NODES.map((n) => [n.id, n]));
+  const swatch = (border: string, bg: string, dashed = false): CSSProperties => ({
+    width: 10, height: 10, borderRadius: 2, border: `1px ${dashed ? "dashed" : "solid"} ${border}`, background: bg, display: "inline-block",
+  });
+  return (
+    <div style={{ overflowX: "auto", border: `1px solid ${theme.stroke.tertiary}`, borderRadius: 8, padding: 8 }}>
+      <svg width={layout.width} height={layout.height} role="img" aria-label="Hedef veri akışı: GoldenGate, Oracle kaynaklarını (ve eklentiyle Oracle dışı kaynakları) Exadata staging ve ODS katmanına çoğalttır; mevcut PL/SQL raporları çalışmaya devam eder ve dbt modellerine dönüştürülür; dbt Core, Exadata içinde dönüşümleri yaparak çekirdek EDW ve martlara aktarır; yerel LLM, Git CI ve zamanlayıcı dbt'yi destekler">
+        <defs>
+          <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill={theme.text.tertiary} />
+          </marker>
+        </defs>
+        {layout.edges.map((e) => {
+          const dx = (e.targetX - e.sourceX) / 2;
+          return (
+            <path key={`${e.from}-${e.to}`} d={`M${e.sourceX},${e.sourceY} C${e.sourceX + dx},${e.sourceY} ${e.targetX - dx},${e.targetY} ${e.targetX},${e.targetY}`}
+              fill="none" stroke={theme.stroke.primary} strokeWidth={1.2} markerEnd="url(#arrow)" />
+          );
+        })}
+        {layout.nodes.map((n) => {
+          const meta = byId.get(n.id);
+          if (!meta) return null;
+          const isExa = meta.tier === "exa";
+          const isTooling = meta.tier === "tooling";
+          return (
+            <g key={n.id}>
+              <rect x={n.x} y={n.y} width={NODE_W} height={NODE_H} rx={6}
+                fill={isExa ? theme.fill.secondary : theme.bg.elevated}
+                stroke={isExa ? theme.accent.primary : theme.stroke.secondary} strokeWidth={1}
+                strokeDasharray={isTooling ? "4 3" : undefined} />
+              {meta.lines.map((line, i) => (
+                <text key={i} x={n.x + NODE_W / 2} y={n.y + NODE_H / 2 + (i - (meta.lines.length - 1) / 2) * 14} textAnchor="middle" dominantBaseline="middle"
+                  fontSize={11} fill={meta.tier === "out" ? theme.text.secondary : theme.text.primary} fontWeight={meta.tier === "out" ? 400 : 600}>
+                  {line}
+                </text>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: "4px 4px 0", fontSize: 12, color: theme.text.tertiary }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={swatch(theme.accent.primary, theme.fill.secondary)} />
+          Exadata içinde çalışır
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={swatch(theme.stroke.secondary, theme.bg.elevated, true)} />
+          dbt çevresindeki araçlar (yerel LLM, Git ve CI, zamanlayıcı)
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={swatch(theme.stroke.secondary, theme.bg.elevated)} />
+          Kaynaklar, CDC ve tüketiciler
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ToolProfile({ tool }: { tool: ToolId }) {
+  const theme = useHostTheme();
+  const t = TOOLS[tool];
+  const rows: [string, string][] = [["Değerlendirilen sürüm", t.version], ["Ürün türü", t.type], ["Mimari", t.architecture], ["Çalıştırma modeli", t.execution], ["Lisans modeli", t.licence]];
+  const listStyle: CSSProperties = { margin: "4px 0 0", paddingLeft: 18, color: theme.text.secondary, fontSize: 13, lineHeight: "19px" };
+  return (
+    <Grid columns="minmax(0, 1.1fr) minmax(0, 1fr)" gap={20}>
+      <Stack gap={12}>
+        <H3>{t.name}</H3>
+        {rows.map(([k, v]) => (

@@ -1,0 +1,30 @@
+                  headers={["Seçenek", "Konum", "Artılar", "Eksiler"]}
+                  rowTone={STACKS.map((s, i): TableRowTone | undefined => (i === 0 ? "success" : s[1] === "Önerilmez" ? "danger" : undefined))}
+                  rows={STACKS}
+                />
+              </Stack>
+            </Grid>
+            <Stack gap={6}>
+              <H3>Aşamalı yol haritası</H3>
+              <Table headers={["Aşama", "Kapsam", "Çıkış kriterleri"]} rows={ROADMAP} />
+            </Stack>
+          </Stack>
+        ) : null}
+      </Stack>
+
+      <Divider />
+
+      <Stack gap={8}>
+        <H3>Yöntem ve kaynaklar</H3>
+        <Text size="small" tone="secondary">
+          Her kriter 1 (zayıf veya uygulanamaz) ile 5 (mükemmel, yerel) arasında puanlanır. Kategori puanı kriterlerinin ortalamasıdır; ağırlıklı toplam, kategori ağırlıkları ile kategori puanlarının SUMPRODUCT değerinin toplam ağırlığa bölünmesiyle bulunur. TCO, öğrenme eğrisi, bakım eforu ve geçiş eforu (mevcut PL/SQL rapor sorgularının dönüştürülmesi) ters yönde puanlanır; yani daha yüksek puan daha düşük maliyet veya efor anlamına gelir. Dönüşüm eforu TCO sekmesinde adam-gün olarak gösterilir ve TCO kategori puanına dahil edilmez. Yalnızca tek bir araç seçileceğinden her araç, Oracle kaynakları için GoldenGate (ULA) ve Exadata'nın her seçenek için kullanılabilir olduğu varsayımıyla, gereksinimin tamamını tek başına karşılama düzeyine göre puanlanır. Aynı model, Excel çalışma kitabını (`output/Takasbank_ETL_Comparison_TR.xlsx`) da besler.
+        </Text>
+        <Table
+          headers={["Madde", "Not", "Üreticiyle doğrula"]}
+          columnAlign={["left", "left", "center"]}
+          rows={SOURCES.map(([item, note, verify]) => [item, <span key="n" style={{ fontSize: 12, color: theme.text.secondary }}>{note}</span>, verify ? "Doğrula" : "-"])}
+        />
+      </Stack>
+    </Stack>
+  );
+}

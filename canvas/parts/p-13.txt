@@ -1,0 +1,179 @@
+          <div key={k}>
+            <Text size="small" tone="tertiary">{k}</Text>
+            <Text>{v}</Text>
+          </div>
+        ))}
+        <Grid columns={2} gap={16}>
+          <div>
+            <Text weight="semibold">Güçlü yönler</Text>
+            <ul style={listStyle}>{t.strengths.map((s) => <li key={s}>{s}</li>)}</ul>
+          </div>
+          <div>
+            <Text weight="semibold">Zayıf yönler</Text>
+            <ul style={listStyle}>{t.weaknesses.map((s) => <li key={s}>{s}</li>)}</ul>
+          </div>
+        </Grid>
+        <Divider />
+        <Text><Text weight="semibold">Takasbank'ta en uygun kullanım: </Text>{t.bestFit}</Text>
+        <Text><Text weight="semibold">Uygun olmadığı durumlar: </Text>{t.notSuited}</Text>
+      </Stack>
+      <Stack gap={8}>
+        <Text weight="semibold">{t.short} kategori bazında puan (1-5, kriter ortalaması)</Text>
+        <BarChart
+          horizontal
+          height={640}
+          yMin={0}
+          yMax={5}
+          categories={CATS.map((c) => c.name)}
+          series={[{ name: `${t.short} kategori puanı`, data: CATS.map((c) => Number(catScore(c, tool).toFixed(2))), tone: "info" }]}
+          referenceLines={[{ value: 3, label: "Yeterli" }]}
+        />
+        <Text size="small" tone="tertiary">Değer ekseni: 1-5 ölçeğinde kategori puanı. Kesikli çizgi 3'ü (Yeterli) gösterir. Kaynak: değerlendirme modeli, {CRITERIA_COUNT} kriter.</Text>
+      </Stack>
+    </Grid>
+  );
+}
+
+const TABS = ["Araç profilleri", "Gerçek zamanlı ve CDC", "Güvenlik ve mevzuat", "5 yıllık TCO", "Riskler", "Hedef mimari"] as const;
+type Tab = typeof TABS[number];
+
+export default function TakasbankEtlEvaluation() {
+  const theme = useHostTheme();
+  const [storedMode, setMode] = useCanvasState<Mode>("modeV4", "baseline");
+  const [custom, setCustom] = useCanvasState<Record<string, number>>("customWeightsV4", scenarioWeights("baseline"));
+  const [selectedCat, setSelectedCat] = useCanvasState<string>("selectedCategoryV4", "MIGR");
+  const [tab, setTab] = useCanvasState<Tab>("tab", "Araç profilleri");
+  const [profileTool, setProfileTool] = useCanvasState<ToolId>("profileTool", "dbt");
+
+  const mode: Mode = storedMode === "custom" || SCENARIOS.some((s) => s.id === storedMode) ? storedMode : "baseline";
+  const weights = mode === "custom" ? custom : scenarioWeights(mode);
+  const totals = weightedTotals(weights);
+  const order = ranked(totals);
+  const leader = order[0];
+  const runnerUp = order[1];
+
+  const scenarioTotals = useMemo(() => SCENARIOS.map((s) => ({ s, totals: weightedTotals(scenarioWeights(s.id)) })), []);
+
+  const setWeight = (id: string, v: number) => {
+    setCustom({ ...weights, [id]: v });
+    setMode("custom");
+  };
+
+  const modeLabel = mode === "custom" ? "Özel ağırlıklar" : SCENARIOS.find((s) => s.id === mode)?.name ?? "";
+
+  return (
+    <Stack gap={28} style={{ padding: "4px 2px 32px", maxWidth: 1180 }}>
+      <Stack gap={6}>
+        <Text size="small" tone="tertiary">Takasbank (İstanbul Takas ve Saklama Bankası A.Ş.) · Şirket içi EDW programı · Kurum İçi · v2.7, 16 Eki 2026</Text>
+        <H1>no repo Şirket içi kurumsal veri ambarı için ETL/ELT aracı değerlendirmesi</H1>
+        <Text tone="secondary">
+          Oracle Data Integrator, Informatica, dbt Core, şirket içi Cloudera ve Apache Spark, tek bir ETL/ELT aracı seçmek amacıyla {CATS.length} ağırlıklı kategorideki {CRITERIA_COUNT} kritere göre değerlendirilmiştir. Kriterler, Takasbank'ın merkezi karşı taraf (CCP) ve takas bankası rolünü yansıtır: günlük/T+1 düzenleyici raporlama, zaten PL/SQL ile yazılmış geniş bir gün içi operasyonel rapor envanteri (bu sorguların dönüştürülmesi eforu dahil), gerçek zamanlı marj ve teminat izleme, tamamen yurt içinde ve şirket içinde barındırmayı gerektiren SPK, BDDK ve KVKK kontrolleri ve EDW'nin ileride PostgreSQL'e taşınma seçeneği.
+        </Text>
+      </Stack>
+
+      <Callout tone="info" title="Takasbank'ın karar kısıtları">
+        <Bullets items={CONSTRAINTS} />
+      </Callout>
+
+      <Grid columns="minmax(0, 1.7fr) minmax(0, 1fr)" gap={24} align="start">
+        <Stack gap={10}>
+          <H2>Öneri: Exadata üzerinde dbt Core</H2>
+          <Text weight="semibold">{RECOMMENDATION_HEADLINE}</Text>
+          <Text>{RECOMMENDATION_SUMMARY}</Text>
+          <Bullets items={RECOMMENDATION} />
+        </Stack>
+        <Stack gap={14}>
+          <Row gap={24} wrap>
+            <Stat value={TOOLS[leader].short} label={`Lider · ${modeLabel}`} tone="success" />
+            <Stat value={totals[leader].toFixed(2)} label="Ağırlıklı puan (1-5)" />
+            <Stat value={`+${(totals[leader] - totals[runnerUp]).toFixed(2)}`} label={`${TOOLS[runnerUp].short} ile fark`} />
+          </Row>
+          <Callout tone="warning" title="Sözleşme verilmeden önce doğrulanacaklar">
+            <Bullets items={VALIDATE} />
+          </Callout>
+        </Stack>
+      </Grid>
+
+      <Divider />
+
+      <Stack gap={14}>
+        <Row align="center" wrap gap={12}>
+          <H2>Puanlama</H2>
+          <div style={{ flex: 1 }} />
+          <Text size="small" tone="tertiary">Ağırlıklandırma senaryosu</Text>
+          <Row gap={6} wrap>
+            {SCENARIOS.map((s) => <Pill key={s.id} active={mode === s.id} onClick={() => setMode(s.id)}>{s.name}</Pill>)}
+            <Pill active={mode === "custom"} onClick={() => setMode("custom")}>Özel</Pill>
+          </Row>
+        </Row>
+        <Text size="small" tone="secondary">
+          {mode === "custom" ? "Özel ağırlıklar aşağıdaki kaydırıcılarla belirlendi. Toplamlar normalize edilir, bu nedenle ağırlıkların toplamının 100 olması gerekmez." : SCENARIOS.find((s) => s.id === mode)?.d}
+        </Text>
+
+        <Grid columns="minmax(0, 1fr) minmax(0, 1.25fr)" gap={24} align="start">
+          <Stack gap={8}>
+            <Text weight="semibold">Araç bazında ağırlıklı puan ({modeLabel})</Text>
+            <BarChart
+              horizontal
+              height={230}
+              yMin={0}
+              yMax={5}
+              categories={order.map((t) => TOOLS[t].short)}
+              series={[{ name: "Ağırlıklı puan (1-5)", data: order.map((t) => Number(totals[t].toFixed(2))) }]}
+            />
+            <Text size="small" tone="tertiary">Değer ekseni: 1-5 ölçeğinde ağırlıklı puan (kategori ağırlıkları x kategori ortalamaları / toplam ağırlık). Kaynak: değerlendirme modeli, {CRITERIA_COUNT} kriter.</Text>
+            <Table
+              headers={["Sıra", "Araç", "Puan", "Maks. %", "En uygun kullanım"]}
+              columnAlign={["center", "left", "right", "right", "left"]}
+              rowTone={order.map((_, i): TableRowTone | undefined => (i === 0 ? "success" : undefined))}
+              rows={order.map((t, i) => [
+                String(i + 1),
+                TOOLS[t].name,
+                totals[t].toFixed(2),
+                `${((totals[t] / 5) * 100).toFixed(0)}%`,
+                <span key="b" style={{ color: theme.text.secondary, fontSize: 12 }}>{TOOLS[t].bestFit}</span>,
+              ])}
+            />
+          </Stack>
+          <Stack gap={8}>
+            <Text weight="semibold">Kategori puanı ısı haritası (1-5, koyu = daha güçlü)</Text>
+            <Heatmap weights={weights} totals={totals} selected={selectedCat} onSelect={setSelectedCat} />
+          </Stack>
+        </Grid>
+
+        <WeightEditor
+          weights={weights}
+          onChange={setWeight}
+          onReset={() => { setCustom(scenarioWeights("baseline")); setMode("baseline"); }}
+        />
+
+        <CriteriaDetail catId={selectedCat} />
+      </Stack>
+
+      <Divider />
+
+      <Stack gap={12}>
+        <H2>Senaryo duyarlılığı</H2>
+        <Grid columns="minmax(0, 1.4fr) minmax(0, 1fr)" gap={24} align="start">
+          <Stack gap={8}>
+            <Text weight="semibold">Araç ve ağırlıklandırma senaryosuna göre ağırlıklı puan (1-5)</Text>
+            <BarChart
+              height={260}
+              yMin={0}
+              yMax={5}
+              categories={TOOL_IDS.map((t) => TOOLS[t].short)}
+              series={scenarioTotals.map(({ s, totals: tt }) => ({ name: s.name, data: TOOL_IDS.map((t) => Number(tt[t].toFixed(2))) }))}
+            />
+            <Text size="small" tone="tertiary">X ekseni: araç. Y ekseni: ağırlıklı puan (1-5). Önceden tanımlı her ağırlıklandırma profili için bir seri.</Text>
+          </Stack>
+          <Stack gap={8}>
+            <Table
+              headers={["Senaryo", "Lider", "İkinci", "Fark"]}
+              columnAlign={["left", "left", "left", "right"]}
+              rows={scenarioTotals.map(({ s, totals: tt }) => {
+                const o = ranked(tt);
+                return [s.name, TOOLS[o[0]].short, TOOLS[o[1]].short, (tt[o[0]] - tt[o[1]]).toFixed(2)];
+              })}
+            />
+            <Bullets items={SCENARIO_NOTES} />
+          </Stack>
