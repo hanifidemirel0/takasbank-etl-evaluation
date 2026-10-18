@@ -1,0 +1,127 @@
+  "Yedek: üretici destekli bir GUI ürünü zorunlu tutulursa ve EDW'nin Oracle'da kalması bekleniyorsa, Oracle lisans konumunu teyit ettikten sonra ODI 14c. Cloudera yalnızca saniye altı akış işleme zorunlu bir gereksinim olursa. Informatica ve bağımsız Spark önerilmez.",
+];
+
+const VALIDATE: string[] = [
+  "Exadata üzerinde PoC: EOD takas yüklemesi, SCD2 snapshot'ları, GoldenGate ile replike edilen tablolarda artımlı merge ve üretim hacimlerinde L1/L2 gecikmesi.",
+  "Sertifikasyondan önce Oracle dışı kaynaklar (ve olası bir PostgreSQL hedefi) için GoldenGate'i ULA paketine eklenti olarak fiyatlandırın ve yedek seçenek için ODI lisanslama görüşünü (Exadata çekirdek sayımı) alın.",
+  "PL/SQL rapor envanterini (sayı, boyut, karmaşıklık) çıkarın ve bir rapor örneğinin dbt modellerine LLM destekli dönüştürme pilotunu parity testleriyle yapın. TCO sayfasındaki adam-gün varsayımlarını ölçülen eforla değiştirin.",
+  "Aracın ömrü içinde PostgreSQL'e geçişin ne kadar olası olduğuna karar verin; olasıysa PoC sırasında küçük bir dbt-postgres taşınabilirlik testi yapın.",
+  "Hangi gerçek zamanlı kullanım senaryolarının 5 saniye altı durum bilgili uyarılara ihtiyaç duyduğunu teyit edin; bu, bir akış platformuna hiç ihtiyaç olup olmadığını belirler.",
+  "Yerel LLM'i dbt ile (IDE asistanı artı dbt MCP sunucusu) pilot edin ve teslimat hızını ve gözden geçirme bulgularını ölçün.",
+  "Destek modelini (SI SLA'ları) BDDK dış hizmet alımı düzenlemesine karşı Bilgi Güvenliği ve İç Denetim ile mutabık hale getirin.",
+];
+
+const SCENARIO_NOTES: string[] = [
+  "Temel senaryo: dbt 3,79, ODI 3,41, Cloudera 3,29. Mevcut PL/SQL rapor sorgularını dönüştürmek ayrı bir kategoridir (yüksek puan daha az efor demektir): dbt 4,6, ODI 2,8, Informatica 2,2, Cloudera ve Spark 2,0; çünkü bir rapor SELECT'i neredeyse olduğu gibi bir dbt modeli olur ve yerel LLM dönüşümün taslağını hazırlar. Yaklaşık 200 rapor için gösterge niteliğindeki efor: dbt 150-300 adam-gün, ODI 400-700, Informatica 500-800, Cloudera ve Spark 600-1.000.",
+  "Önce yapay zekâ ve SQL verimliliği: dbt açık ara öndedir (ODI için 3,34 ve Cloudera için 3,32'ye karşı 3,98).",
+  "Önce taşınabilirlik (gelecekteki PostgreSQL): dbt açık ara öndedir (Cloudera için 3,36 ve ODI için 3,31'e karşı 3,88); ODI'nin avantajları Oracle'a özgü olduğu için geriler.",
+  "Modern veri yığını: dbt, tüm profiller arasında en geniş farkla öndedir (Cloudera için 3,35, Spark için 3,25 ve ODI için 3,17'ye karşı 4,19). Yapay zekâ destekli mühendislik ve DevOps (Git, CI/CD, otomatik testler) ağırlığın %30'unu taşır; meta veri, ekosistem ivmesi ve bakım eforu daha da ekler. ODI ve Informatica, repository tabanlı, GUI öncelikli tasarımları yerel LLM'e ve Git'e çok az imkân sunduğu için geride kalır; Cloudera ve Spark ise kod öncelikli ve açık olmalarından kazanç sağlar.",
+  "Önce düzenleyici ve üretici desteği: fiilen berabere, dbt hafif farkla öndedir (ODI için 3,59'a karşı 3,64). ODI'nin üretici desteği ve erişim kontrollerindeki avantajı dbt'nin diğer alanlardaki üstünlüğünü dengeler; öneriye destek modelinin koşul olarak bağlanmasının nedeni budur.",
+  "Önce gerçek zamanlılık: Cloudera dar farkla öndedir (dbt için 3,42 ve ODI için 3,28'e karşı 3,48); çünkü kendi akış işleme yeteneği olan tek seçenektir, ODI ve dbt ise değişiklik yakalama için GoldenGate'e bağımlıdır. 0,07'lik fark küçüktür ve PL/SQL rapor sorgularını dönüştürme eforu, öğrenme eğrisi ve ikinci bir platform işletme ile dengelenir.",
+  "Lisans duyarlılığı: Oracle, ODI'yi ULA'ya ücretsiz eklese bile, ODI temel senaryoda dbt'nin 3,79'una karşı 3,44 puan alırdı.",
+  "Informatica ve bağımsız Spark hiçbir profilde lider değildir.",
+];
+
+const CRITERIA_COUNT = CATS.reduce((a, c) => a + c.c.length, 0);
+
+function migrationDays(personDays: [number, number]): [number, number] {
+  return [MIGRATION.reports * personDays[0], MIGRATION.reports * personDays[1]];
+}
+
+function catScore(cat: Category, t: ToolId): number {
+  return cat.c.reduce((a, cr) => a + cr.s[t][0], 0) / cat.c.length;
+}
+
+function weightedTotals(weights: Record<string, number>): Record<ToolId, number> {
+  const sumW = CATS.reduce((a, c) => a + (weights[c.id] ?? 0), 0);
+  const out = {} as Record<ToolId, number>;
+  for (const t of TOOL_IDS) {
+    const s = CATS.reduce((a, c) => a + (weights[c.id] ?? 0) * catScore(c, t), 0);
+    out[t] = sumW > 0 ? s / sumW : 0;
+  }
+  return out;
+}
+
+function scenarioWeights(id: ScenarioId): Record<string, number> {
+  const w: Record<string, number> = {};
+  for (const c of CATS) w[c.id] = c.w[id];
+  return w;
+}
+
+function ranked(totals: Record<ToolId, number>): ToolId[] {
+  return [...TOOL_IDS].sort((a, b) => totals[b] - totals[a]);
+}
+
+const ENUM_TR: Record<string, string> = { Strong: "Güçlü", Adequate: "Yeterli", Gap: "Açık", Yes: "Evet", Partial: "Kısmi", No: "Hayır", High: "Yüksek", Medium: "Orta", Low: "Düşük" };
+
+function Heat({ v, bold = false }: { v: number; bold?: boolean }) {
+  const theme = useHostTheme();
+  const opacity = 0.05 + Math.max(0, Math.min(4, v - 1)) * 0.125;
+  return (
+    <div style={{ position: "relative", padding: "6px 8px", textAlign: "center", minWidth: 64 }}>
+      <div style={{ position: "absolute", inset: 2, borderRadius: 4, background: theme.accent.primary, opacity }} />
+      <span style={{ position: "relative", color: theme.text.primary, fontVariantNumeric: "tabular-nums", fontWeight: bold ? 600 : 400, fontSize: 13 }}>
+        {v.toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
+function StatusText({ level, note }: { level: string; note?: string }) {
+  const theme = useHostTheme();
+  const color = level === "Strong" || level === "Yes" ? theme.category.green
+    : level === "Adequate" || level === "Partial" ? theme.category.yellow
+    : theme.category.red;
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, color: theme.text.primary }}>
+        <span style={{ width: 7, height: 7, borderRadius: 4, background: color, display: "inline-block" }} />
+        {ENUM_TR[level] ?? level}
+      </span>
+      {note ? <span style={{ color: theme.text.secondary, fontSize: 12 }}>{note}</span> : null}
+    </span>
+  );
+}
+
+function Bullets({ items }: { items: string[] }) {
+  const theme = useHostTheme();
+  return (
+    <ul style={{ margin: 0, paddingLeft: 18, color: theme.text.secondary, fontSize: 13, lineHeight: "20px" }}>
+      {items.map((x) => <li key={x} style={{ marginBottom: 4 }}>{x}</li>)}
+    </ul>
+  );
+}
+
+function Heatmap({ weights, totals, selected, onSelect }: {
+  weights: Record<string, number>; totals: Record<ToolId, number>; selected: string; onSelect: (id: string) => void;
+}) {
+  const theme = useHostTheme();
+  const sumW = CATS.reduce((a, c) => a + (weights[c.id] ?? 0), 0);
+  const cell: CSSProperties = { borderBottom: `1px solid ${theme.stroke.tertiary}`, padding: 0 };
+  const th: CSSProperties = { textAlign: "center", padding: "8px 6px", color: theme.text.secondary, fontWeight: 600, fontSize: 12, borderBottom: `1px solid ${theme.stroke.secondary}` };
+  return (
+    <div style={{ border: `1px solid ${theme.stroke.tertiary}`, borderRadius: 8, overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, textAlign: "left", paddingLeft: 12 }}>Kategori (kriterler için tıklayın)</th>
+            <th style={th}>Ağırlık</th>
+            {TOOL_IDS.map((t) => <th key={t} style={th}>{TOOLS[t].short}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {CATS.map((c) => {
+            const isSel = c.id === selected;
+            return (
+              <tr key={c.id} onClick={() => onSelect(c.id)} style={{ cursor: "pointer", background: isSel ? theme.fill.secondary : "transparent" }}>
+                <td style={{ ...cell, padding: "6px 12px", color: theme.text.primary, fontWeight: isSel ? 600 : 400, borderLeft: `2px solid ${isSel ? theme.accent.primary : "transparent"}` }}>{c.name}</td>
+                <td style={{ ...cell, padding: "6px 8px", textAlign: "center", color: theme.text.secondary, fontVariantNumeric: "tabular-nums" }}>
+                  {sumW > 0 ? `${(((weights[c.id] ?? 0) / sumW) * 100).toFixed(0)}%` : "-"}
+                </td>
+                {TOOL_IDS.map((t) => <td key={t} style={cell}><Heat v={catScore(c, t)} /></td>)}
+              </tr>
+            );
+          })}
+          <tr>
+            <td style={{ padding: "8px 12px", fontWeight: 600, color: theme.text.primary }}>Ağırlıklı puan (1-5)</td>
+            <td style={{ padding: "8px", textAlign: "center", color: theme.text.secondary }}>100%</td>

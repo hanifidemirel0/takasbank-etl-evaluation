@@ -1,0 +1,42 @@
+  ["E. Informatica", "Önerilmez", "Olgun GUI tabanlı ETL.", "Yol haritası riski, en yüksek maliyet, şirket içi yapay zekâ yok."],
+];
+
+const ROADMAP: string[][] = [
+  ["Aşama 0 - Temeller", "Exadata üzerinde dbt PoC'si (EOD takas yüklemesi, SCD2, GoldenGate tablolarında artımlı merge); PL/SQL rapor envanterinin çıkarılması ve parity testli LLM destekli dönüştürme pilotu; küçük dbt-postgres taşınabilirlik testi; SI destek sözleşmesi; Oracle'dan GoldenGate Oracle dışı eklentisi ve ODI lisans görüşleri; ortamlar ve güvenlik temel seviyesi.", "PoC hacim ve gecikme hedeflerini karşılar; dönüştürme pilotu parity'yi kanıtlar; destek modeli ve yapay zekâ kontrolleri Bilgi Güvenliği ve İç Denetim tarafından onaylanır."],
+  ["Aşama 1 - EDW çekirdeği (batch)", "GoldenGate ile Exadata staging'e; takas, saklama ve teminat için dbt çekirdek EDW; mevcut PL/SQL raporları çıktıları dbt kaynağı tanımlı zamanlayıcı adımları olarak çalışır; ilk düzenleyici martlar; dbt testleriyle CI.", "İlk SPK/BDDK raporları mutabakatla EDW'den üretilir; tüm PL/SQL raporları dbt lineage'ında görünür."],
+  ["Aşama 2 - ODS ve operasyonel raporlama", "GoldenGate ile beslenen Exadata ODS; ODS görünümleri üzerinde L1 panoları; L2 artımlı dbt modelleri; marj ve teminat için ODS uyarı sorguları; en yüksek öncelikli PL/SQL raporlarının dbt modellerine dönüştürülmesi.", "Öncelikli operasyonel raporlar kaynak sistemlerden kaldırılır; dönüştürülen raporlar parity testlerini geçer."],
+  ["Aşama 3 - Ölçekte yapay zekâ destekli teslimat", "Yeni modeller, testler, dokümantasyon ve PL/SQL dönüştürme için LLM şablonları; pull request'lerde yapay zekâ incelemesi; dbt MCP sunucusu ile meta veriye dayalı destek.", "Ölçülen çevrim süresi azalması; istikrarlı PL/SQL yeniden düzenleme hızı; yapay zekâ kaynaklı üretim olayı yok."],
+  ["Aşama 4 - Optimizasyon", "DQ otomasyonu, lineage kapsamının tamamlanması, eski ETL ve PL/SQL'in kapatılması; PostgreSQL seçeneğini açık tutmak için Oracle'a özgü makroların izlenmesi; herhangi bir L0 kullanım senaryosunun akış platformuna ihtiyaç duyup duymadığının gözden geçirilmesi.", "Eski entegrasyon kapatıldı; tüm düzenleyici raporlar için lineage kapsamı; PostgreSQL geçişi için bilinen, sınırlı efor."],
+];
+
+const SOURCES: [string, string, boolean][] = [
+  ["Oracle ULA kapsamı (GoldenGate)", "ULA yalnızca Oracle kaynakları için GoldenGate'i kapsar. Oracle dışı kaynaklar (ve PostgreSQL) için GoldenGate'i eklenti olarak fiyatlandırın, GoldenGate for Distributed Applications and Analytics (Kafka) kapsamını teyit edin ve sertifikasyondan önce dağıtımları planlayın.", true],
+  ["Oracle Data Integrator 14c (14.1.2) lisanslaması", "Aralık 2024'te yayımlandı. Hangi işlemcilerin (ajan sunucuları, Exadata hedefi) lisanslanması gerektiği konusunda Oracle'ın yazılı görüşünü alın.", true],
+  ["Informatica 10.5.x şirket içi destek ufku", "Informatica, şirket içi ortamların bulut IDMC'ye taşınmasını teşvik ediyor; standart/uzatılmış destek bitiş tarihlerini üreticiyle teyit edin.", true],
+  ["Salesforce'un Informatica'yı satın alması", "Kasım 2025'te tamamlandı; şirket içi ürün stratejisine etkisini değerlendirin.", true],
+  ["dbt Core lisanslaması ve dbt Labs-Fivetran birleşmesi", "dbt Core Apache 2.0'dır; daha yeni dbt Fusion motoru farklı bir lisans kullanır ve henüz Oracle'ı desteklemez; birleşme Ekim 2025'te duyuruldu.", true],
+  ["dbt-oracle adaptörü", "Oracle tarafından sürdürülür; desteklenen dbt Core sürümünü, materialisation'ları ve Exadata'ya özgü yapılandırmaları kontrol edin.", true],
+  ["dbt MCP sunucusu", "dbt Labs'in açık kaynak MCP sunucusu; CLI ve proje meta veri araçları dbt Core ile çalışır, diğer araçlar dbt Cloud gerektirir. Yerel LLM kullanan bir asistan tarafından hedeflenebilir.", true],
+  ["dbt-postgres adaptörü", "dbt Labs tarafından sürdürülen birinci taraf adaptör; gelecekteki bir PostgreSQL EDW hedefinin temeli.", false],
+  ["EDW ölçeğinde PostgreSQL", "30-60 TB'lık bir EDW, ölçeklenebilir (Citus) veya Oracle uyumlu (EDB Postgres Advanced Server) bir dağıtım gerektirir; PL/SQL uyumluluğunu, desteği ve ora2pg tarzı dönüştürme araçlarını kontrol edin.", true],
+  ["Cloudera şirket içi yapay zekâ özellikleri", "Özel model uç noktalarıyla Hue SQL AI Assistant ve Private Cloud Data Services üzerinde Cloudera AI çıkarımı - sürümleri ve destek durumunu teyit edin.", true],
+  ["Exadata üzerinde Oracle AI Database (23ai / 26ai)", "Exadata 23ai veya üstünü çalıştırıyorsa, DBMS_VECTOR_CHAIN SQL'den kendi barındırılan bir LLM'i çağırabilir; veri akışı içi yapay zekâ için ODI veya dbt tarafından kullanılabilir.", true],
+  ["Cloudera Private Cloud Base 7.1.9 / 7.3.x", "Bileşen sürümlerini (Kafka, Flink, NiFi, Iceberg) ve destek yaşam döngüsünü teyit edin.", true],
+  ["Apache Spark 4.x", "Spark 4.0 2025'te yayımlandı; Scala/Java ve Kubernetes uyumluluğunu kontrol edin.", false],
+  ["SPK Bilgi Sistemleri Yönetimi Tebliği (VII-128.9)", "Sermaye piyasası kurumları için bilgi sistemleri yönetimi tebliği.", false],
+  ["BDDK Bankaların Bilgi Sistemleri ve Elektronik Bankacılık Hizmetleri Hakkında Yönetmelik", "Yurt içi birincil/ikincil sistemler dahil bilgi sistemleri düzenlemesi.", false],
+  ["KVKK - 6698 sayılı Kişisel Verilerin Korunması Kanunu", "Md. 9, 2024'te değiştirildi (yurt dışına aktarım); md. 12 veri güvenliği.", false],
+  ["CPMI-IOSCO Finansal Piyasa Altyapıları İlkeleri (PFMI)", "Takasbank için CCP/CSD ile ilişkili FMI olarak geçerlidir (operasyonel risk, kamuoyu bilgilendirmesi).", false],
+];
+
+const RECOMMENDATION_HEADLINE = "Exadata üzerinde dbt Core'u tek ELT aracı olarak, değişiklik yakalama için ULA kapsamındaki GoldenGate ile seçin.";
+
+const RECOMMENDATION_SUMMARY = "Tek araç, hedef olarak mevcut Exadata ve Oracle kaynakları için zaten lisanslı GoldenGate ile seçim, veritabanı içi iki ELT aracına iner. dbt Core temel senaryoda öndedir (ODI için 3,41'e karşı 3,79); çünkü SQL'de güçlü ekibe uyar, en kısa öğrenme eğrisine sahiptir, yerel LLM'i en iyi şekilde kullanır, mevcut PL/SQL rapor sorgularını en az eforla dönüştürür, ileride PostgreSQL'e geçişi açık tutar, yeni lisans gerektirmez ve tamamen Exadata üzerinde çalışır. ODI ikincidir: PL/SQL raporlarını değiştirmeden çalıştırır ve üretici desteği ile düzenleyici kontroller baskın olduğunda dbt'ye 0,04 yaklaşır, ancak değeri Oracle'da kalmaya bağlıdır. Cloudera yalnızca gerçek zamanlılık öncelikli olduğunda öndedir (dbt için 3,42'ye karşı 3,48) ve EDW olarak Exadata ile ikinci bir büyük platform eklemiş olur. Öneri dbt Core'dur; koşul, Bilgi Güvenliği ve İç Denetim'in üretici desteği yerine sözleşmeli bir SI destek modelini kabul etmesidir; kabul etmezlerse ODI yedek seçenektir.";
+
+const RECOMMENDATION: string[] = [
+  "Oracle tarafından sürdürülen dbt-oracle adaptörüyle dbt Core, tüm dönüşümleri Exadata içinde çalıştırır: staging, çekirdek EDW ile düzenleyici ve operasyonel martlar.",
+  "GoldenGate (Oracle kaynakları için ULA kapsamında) Exadata staging'e ve bir operasyonel veri deposuna replike eder; böylece L1 panoları başka bir araç olmadan saniyeler öncesine ait veriyi görür. Oracle dışı kaynaklar için ULA paketinde fiyatlandırılan GoldenGate eklentisi gerekir.",
+  "Mevcut PL/SQL raporları ilk günden itibaren Exadata üzerinde zamanlayıcı adımları olarak çalışmaya devam eder; çıktı tabloları dbt kaynağı olarak tanımlanır. Bir rapor sorgusunu dönüştürmek, SELECT'ini bir dbt modeline çevirmek demektir; dönüştürmenin taslağını yerel LLM hazırlar, sonuçların eşleştiğini parity testleri kanıtlar. Yaklaşık 200 rapor için bu dönüştürme dbt'de 150-300 adam-gün (yaklaşık 0,7-1,4 adam-yıl), ODI'de 400-700 adam-gün, Cloudera veya Spark'ta ise 600-1.000 adam-gün olarak tahmin edilmektedir.",
+  "Modeller veritabanından bağımsız bir araçta düz SQL olduğundan, ileride PostgreSQL'e geçiş aynı projeyi dbt-postgres adaptörü ve aynı testlerle yeniden kullanır; dönüştürme eforu bilinir kalsın diye Oracle'a özgü makrolar izlenir.",
+  "Veri akışları Git'te düz SQL ve YAML'dir; böylece yerel LLM model, test ve dokümantasyon üretebilir ve her yapay zekâ değişikliği pull request incelemesinden ve CI'dan geçer.",
+  "dbt'nin boşluklarını ikinci bir ETL aracı satın almadan kapatın: SLA'lı yerel SI destek sözleşmesi, kurum içi geliştirilen zamanlayıcı, bir sır kasası ve dosyalar için Exadata external table'ları.",
