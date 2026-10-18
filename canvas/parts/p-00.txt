@@ -1,0 +1,72 @@
+import {
+  BarChart,
+  Callout,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Grid,
+  H1,
+  H2,
+  H3,
+  Pill,
+  Row,
+  Stack,
+  Stat,
+  Table,
+  Text,
+  computeDAGLayout,
+  useCanvasState,
+  useHostTheme,
+  useMemo,
+} from "cursor/canvas";
+import type { CSSProperties, TableRowTone } from "cursor/canvas";
+
+type ToolId = "odi" | "ipc" | "dbt" | "cdp" | "spark";
+type ScenarioId = "baseline" | "realtime" | "ai" | "regulatory" | "portability" | "modern";
+type Mode = ScenarioId | "custom";
+type Score = [number, string];
+type Criterion = { id: string; name: string; d: string; s: Record<ToolId, Score> };
+type Category = { id: string; name: string; d: string; w: Record<ScenarioId, number>; c: Criterion[] };
+
+const TOOL_IDS: ToolId[] = ["odi", "ipc", "dbt", "cdp", "spark"];
+
+const TOOLS: Record<ToolId, {
+  short: string; name: string; version: string; type: string; architecture: string; execution: string;
+  licence: string; strengths: string[]; weaknesses: string[]; bestFit: string; notSuited: string;
+}> = {
+  odi: {
+    short: "ODI", name: "Oracle Data Integrator", version: "ODI 14c (14.1.2) / 12c (12.2.1.4)", type: "ELT entegrasyon aracı (ticari)",
+    architecture: "Tanımlayıcı (declarative) eşlemeler Exadata üzerindeki master/work repository'de saklanır; Java ajanları (bağımsız, aynı sunucuda veya WebLogic) orkestrasyonu yapar; Knowledge Module'ler Exadata içinde çalışan yerel SQL üretir.",
+    execution: "ELT pushdown - dönüşüm Exadata içinde çalışır. Yerel GoldenGate entegrasyonu (journalizing / CDC KM'leri) ile near-real-time.",
+    licence: "Takasbank ULA kapsamında değil - yeni bir lisans olup yıllık 250.000 USD (5 yılda 1,25 milyon USD) olarak varsayılmıştır. ODI EE normalde işlemci (core faktörü) veya Named User Plus bazında ve yıllık destek ile lisanslanır; varsayılan ücret yalnızca Oracle, Exadata hedef çekirdeklerini saymazsa geçerlidir - yazılı bir lisanslama görüşü alınmalıdır.",
+    strengths: ["Exadata'ya en iyi sınıf pushdown (paralel DML, partition exchange, external table'lar)", "Düşük gecikmeli ODS beslemeleri için ULA kapsamındaki GoldenGate ile yerel entegrasyon", "Olgun SCD2, kısıt denetimi (CKM) ve hata tablosu kalıpları", "Mevcut PL/SQL raporlarını ODI prosedürleri ve load-plan adımları olarak değiştirmeden çalıştırır", "Güçlü Oracle Türkiye ve iş ortağı ekosistemi; üretici destekli"],
+    weaknesses: ["ULA dışında yeni lisans, yıllık 250 bin USD olarak varsayılmıştır; Oracle Exadata çekirdeklerini sayarsa ücret artabilir", "Eşlemeler özel (proprietary) bir repository'de tutulur; bu nedenle yerel LLM yalnızca SDK/Groovy betikleri üzerinden yardımcı olabilir", "Kod öncelikli araçlara kıyasla zayıf Git / CI-CD ve otomatik test desteği", "Dik öğrenme eğrisi (topology, context'ler, Knowledge Module'ler, load plan'lar)", "Avantajları Oracle'a özgüdür; ileride PostgreSQL'e geçiş, yeni bir Oracle lisansını çok az değer taşır halde bırakır"],
+    bestFit: "EDW'nin Oracle'da kalması bekleniyorsa, yerel GoldenGate entegrasyonlu, üretici destekli ve GUI tabanlı Exadata ELT çözümü.",
+    notSuited: "Yapay zekâ destekli, kod öncelikli geliştirme; saniye altı akış işleme; yeni lisans harcamasını en aza indirme; muhtemel bir PostgreSQL geçişi.",
+  },
+  ipc: {
+    short: "Informatica", name: "Informatica", version: "Informatica 10.5.x şirket içi (PowerCenter ürün ailesi; Salesforce'a ait)", type: "Motor tabanlı ETL aracı (ticari)",
+    architecture: "Repository servisi, entegrasyon servisi ve isteğe bağlı grid içeren domain; GUI Designer/Workflow Manager; dönüşümler Informatica motorunda çalışır, isteğe bağlı pushdown optimizasyonu.",
+    execution: "Özel bir motorda ETL, bölümlenmiş (partitioned) veri akışları; CDC, Informatica PowerExchange (ayrıca lisanslı) ile veya GoldenGate ile replike edilen staging okunarak; sınırlı gerçek zamanlılık (JMS/MQ oturumları).",
+    licence: "Çekirdek / sürüm bazında, seçenekler (PowerExchange, Pushdown, HA, Grid) ayrıca lisanslanır; mevcut hiçbir sözleşme kapsamında değildir; üretici stratejisi bulut IDMC'ye geçiştir.",
+    strengths: ["Çok geniş bağlantı (mainframe, MQ, dosyalar, SWIFT, veritabanları) sunan en olgun GUI tabanlı ETL", "Güçlü yeniden başlatılabilirlik, hata yönetimi ve operasyonel araçlar", "Türk bankacılığında deneyimli geliştirici havuzu geniştir", "Motor tabanlı mantık veritabanından bağımsızdır; bu nedenle ileride PostgreSQL'e geçişte esas olarak bağlantılar değişir"],
+    weaknesses: ["Stratejik yol haritası bulut (IDMC); şirket içi Informatica bakım modundadır - destek tarihlerini doğrulayın", "Üretken yapay zekâ (CLAIRE GPT / CLAIRE Copilot) yalnızca bulut IDMC'de vardır; şirket içi Informatica'da yoktur", "En yüksek lisans maliyeti; birçok yetkinlik ücretli seçenektir", "Pushdown satın alınmadıkça verileri Exadata yerine kendi motorunda işler; mevcut PL/SQL raporları bundan çok az fayda sağlar"],
+    bestFit: "Mevcut Informatica ortamları ve heterojen batch entegrasyonu.",
+    notSuited: "Uzun ömürlü yeni bir şirket içi kurulum; yapay zekâ destekli geliştirme; maliyete duyarlı programlar.",
+  },
+  dbt: {
+    short: "dbt", name: "dbt Core (data build tool)", version: "dbt Core 1.x (açık kaynak, Apache 2.0) ve Oracle tarafından sürdürülen dbt-oracle adaptörü", type: "SQL dönüşüm çatısı (açık kaynak)",
+    architecture: "Jinja şablonlu SQL modellerini bir DAG'a derleyen ve bunları Exadata içinde çalıştıran CLI; kod, testler ve dokümantasyon Git'te; orkestrasyon kurum içi geliştirilen zamanlayıcı ile.",
+    execution: "Exadata üzerinde veritabanı içi (in-database) ELT. Oracle kaynakları ULA kapsamındaki GoldenGate ile Exadata staging/ODS'ye alınır, dosyalar Exadata external table'ları ile; dbt artımlı (incremental) modelleri buradan dönüştürür.",
+    licence: "dbt Core ücretsizdir (Apache 2.0). dbt Cloud bir SaaS'tır ve şirket içi kullanım / veri yerleşimi açısından kabul edilemez. Yerel bir sistem entegratörü (SI) ile destek sözleşmesi için bütçe ayrılmalıdır.",
+    strengths: ["SQL öncelikli: her model bir Oracle SQL SELECT'idir; dolayısıyla ekibin SQL becerileri doğrudan kullanılır ve öğrenme eğrisi kısadır", "Git'teki düz metin SQL ve YAML, yerel bir LLM'in en iyi ürettiği, belgelediği ve gözden geçirdiği biçimdir; PL/SQL raporlarının modellere dönüştürülmesi de dahildir", "Tüm işlem Exadata içinde - ikinci bir işlem platformu yok; yerleşik testler, CI ve dokümantasyon", "En taşınabilir seçenek: aynı proje ileride birinci taraf dbt-postgres adaptörü aracılığıyla PostgreSQL'i hedefleyebilir", "Lisans maliyeti yok; ULA kapsamındaki GoldenGate'i ve mevcut Exadata'yı yeniden kullanır"],
+    weaknesses: ["Kendi veri çekme veya akış özelliği yok; GoldenGate ve Exadata external table'larına bağımlıdır; MQ/API kaynakları için bir yükleyici gerekir", "Şirket içi dbt Core için üretici desteği yok; BDDK dış hizmet alımı beklentilerini karşılamak için sözleşmeli bir SI gerekir", "Mevcut PL/SQL prosedürleri, yeniden düzenlenene kadar yalnızca hook'lar veya zamanlayıcı adımları olarak model DAG'ının yanında çalışır", "Takvimler, işler arası bağımlılıklar ve uyarılar için kurum içi zamanlayıcıya bağımlıdır ve bir sır kasasına (secrets vault) ihtiyaç duyar; sık sürümler sürüm sabitleme gerektirir", "dbt-oracle bulut adaptörlerinin gerisindedir ve yeni dbt Fusion motoru henüz Oracle'ı desteklememektedir - doğrulayın"],
+    bestFit: "Exadata üzerinde tek ELT aracı; GoldenGate kaynak değişikliklerini staging'e ve ODS'ye indirir.",
+    notSuited: "Saniye altı durum bilgili (stateful) akış işleme; üretici destekli GUI ürünü bekleyen ekipler.",
+  },
+  cdp: {
+    short: "CDP", name: "Cloudera Data Platform (şirket içi)", version: "Cloudera şirket içi: Private Cloud Base 7.1.9-7.3.x, isteğe bağlı Private Cloud Data Services", type: "Entegre veri platformu (açık kaynak yazılımın ticari dağıtımı)",
+    architecture: "HDFS/Ozone, Iceberg, Hive, Impala, Kudu, Spark, NiFi (CFM), Kafka (CSM), Flink (CSA) ile SDX (Ranger, Atlas, Knox) içeren şirket içi küme; Cloudera Manager ile yönetilir.",
+    execution: "Spark/Hive ile batch, NiFi ile veri alımı, Kafka + Flink / Spark Structured Streaming ile akış. Sonuçlar JDBC ile Exadata'ya yüklenir veya Impala/Kudu'dan sunulur.",
+    licence: "Düğüm / işlem kapasitesi başına yıllık abonelik; kurumsal destek dahildir. İki sitede ayrı bir küme için donanım, Exadata'nın üzerine eklenir.",
