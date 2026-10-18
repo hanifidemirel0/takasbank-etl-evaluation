@@ -9,6 +9,7 @@ TEMPLATE="$ROOT/.cursor/skills/publish-canvas/template"
 
 cat "$ROOT"/canvas/parts/p-*.txt > "$CANVAS"
 python3 "$ROOT/scripts/fixups.py" "$CANVAS"
+patch -s "$CANVAS" "$ROOT/canvas/revisions.patch"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

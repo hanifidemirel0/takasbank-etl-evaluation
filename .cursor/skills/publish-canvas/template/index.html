@@ -8,6 +8,14 @@
       body {
         margin: 0;
       }
+      html[data-mantine-color-scheme="light"] body {
+        background: #ffffff;
+      }
+      .mantine-BarChart-root .recharts-bar-rectangle,
+      .mantine-ChartLegend-legendItem .mantine-ChartLegend-legendItemColor {
+        filter: saturate(0.7);
+        opacity: 0.65;
+      }
       #root {
         width: 100%;
         box-sizing: border-box;
