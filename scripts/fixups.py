@@ -1,6 +1,7 @@
 import sys
 
 FIXES = [
+    ("rapordan kaynakta lineage", "rapordan kaynağa lineage"),
     ("rapordan kaynakla lineage", "rapordan kaynağa lineage"),
     ("dbt kaynağı tanımlı zamanlayıcı", "dbt kaynağı olarak tanımlı zamanlayıcı"),
     ("Exadata staging ve ODS katmanına çoğalttır", "Exadata staging ve ODS katmanına çoğaltır"),
