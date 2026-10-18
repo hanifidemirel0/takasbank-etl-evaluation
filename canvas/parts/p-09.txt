@@ -27,7 +27,7 @@ const LAYERS: string[][] = [
   ["Orkestrasyon", "Kurum içi geliştirilen zamanlayıcı", "Control-M veya Apache Airflow (yalnızca kurum içi zamanlayıcıda boşluk varsa yedek)", "dbt build'lerini ve PL/SQL adımlarını başlatır; EOD takvimleri, bağımlılıklar, yeniden denemeler ve uyarılar PoC'de kanıtlanmalıdır."],
   ["EDW", "Exadata üzerinde Oracle Database (şirket içi)", "PostgreSQL (gelecekteki seçenek)", "Çekirdek model artı martlar; PostgreSQL'e geçiş dbt projesini dbt-postgres ile yeniden kullanır."],
   ["Yapay zekâ destekli mühendislik", "IDE asistanı + dbt MCP sunucusu üzerinden yerel LLM", "-", "Yalnızca kod ve meta veri; çıktı PR incelemesinden ve CI'dan geçer."],
-  ["Yönetişim", "dbt docs ve testleri + Exadata güvenliği (VPD, Redaction, unified audit)", "Kurumsal katalog", "SPK/BDDK raporları için rapordan kaynakla lineage."],
+  ["Yönetişim", "dbt docs ve testleri + Exadata güvenliği (VPD, Redaction, unified audit)", "Kurumsal katalog", "SPK/BDDK raporları için rapordan kaynakta lineage."],
   ["Tüketim", "Mevcut BI platformu", "-", "Exadata üzerindeki martları ve ODS görünümlerini okur."],
 ];
 
